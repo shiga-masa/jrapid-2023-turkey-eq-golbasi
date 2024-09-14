@@ -1,30 +1,282 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>Leaflet Map Prototype</title>
+    <title>JRAPID İskenderun</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
+        #map-container {
+            display: flex;
+            justify-content: center;
+        }
+
         #map {
-            height: 600px;
+            max-width: 800px;
             width: 100%;
+            height: 600px;
+        }
+
+        #data-links {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+
+        #data-links h2 {
+            color: #202020;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        #data-links ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #data-links li {
+            margin: 10px 0;
+        }
+
+        #data-links a {
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        #data-links a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
-<body>
-    <div id="map"></div>
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script>
-        var map = L.map('map').setView([39.9334, 32.8597], 13); // Coordinates for Ankara, Turkey
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+<body>
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+    <div id="data-links">
+        <h2>Overview</h2>
+        <p>This map shows the results from the project of JSPS KAKENHI Grant Number 22K21372 and JST J-RAPID Program
+            Grant Number JPMJJR2304.</p>
+        <p>The project page and downloadble dataset are available from <a
+                href="https://github.com/shiga-masa/jrapid-2023-turkey-eq-golbasi">this URL</a></p>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script>
+        
+        var map = L.map('map').setView([37.7891366, 37.6470373], 14.5);
+
+        var streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        var marker = L.marker([39.9334, 32.8597]).addTo(map)
-            .bindPopup('Ankara, Turkey')
-            .openPopup();
+        // 
+
+        var baseLayers = {
+            "Streets": streets,
+        };
+
+        var overlays = {
+            // "Microtremor 202310": microtremor202310,
+            // "Microtremor 202406": microtremor202406
+        };
+
+        // smaller values are closer to red(0xff0000) and larger values are closer to blue(0x0000ff)
+        // min: 0.25, max: 3
+        // interbal: 0.5
+        function getColorMTFreq(d) {
+            if (d === null) {
+                return '#ff0000';
+            }
+            else if (d < 0.25) {
+                return '#ff0000';
+            }
+            else if (d < 0.75) {
+                return '#ff8000';
+            }
+            else if (d < 1.25) {
+                return '#ffff00';
+            }
+            else if (d < 1.75) {
+                return '#80ff00';
+            }
+            else if (d < 2.25) {
+                return '#00ff00';
+            }
+            else if (d < 2.75) {
+                return '#00ff80';
+            }
+            else if (d < 3.25) {
+                return '#00ffff';
+            }
+            else {
+                return '#0000ff';
+            }
+
+        }
+
+
+        function onEachFeature(feature, layer) {
+            if (feature.properties) {
+                var popupContent = '<table>';
+                    
+                // get date time from start_datetime (ex:202310202250000000)
+                var date = new Date(feature.properties.start_datetime.slice(0, 4) + 
+                                    '-' + feature.properties.start_datetime.slice(4, 6) + 
+                                    '-' + feature.properties.start_datetime.slice(6, 8));
+                popupContent += '<tr><th>Date</th><td>' + date.toLocaleDateString() + '</td></tr>';
+                const conditional_keys = ["group_index", "latitude", "longitude", "mean_curve_freq"];
+                for (var prop in feature.properties) {
+                    if (conditional_keys.includes(prop)) {
+
+                        // change string of prop to Title Case (ex: mean_curve_freq -> Mean Curve Freq)
+                        prop_label = prop.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        if (prop === "mean_curve_freq") {
+                            popupContent += '<tr><th>' + prop_label + '</th><td>' + feature.properties[prop].toFixed(2) + '</td></tr>';
+                        } else if (prop === "latitude" || prop === "longitude") {
+                            popupContent += '<tr><th>' + prop_label + '</th><td>' + feature.properties[prop].toFixed(6) + '</td></tr>';
+                        } else {
+                            popupContent += '<tr><th>' + prop_label + '</th><td>' + feature.properties[prop] + '</td></tr>';
+                        }
+                    }
+                }
+                popupContent += '</table>';
+
+                // add svg element to popup
+                // svg file is located in src/microtremor/202310/<sub2_dir_name>/group_<group_index>.svg
+                // sub2_dir_name can be found by using sorted list of sub-directory names in 202310 or 202406 directory
+                // sub2_dir_index is the index of sub2_dir_name in the sorted list
+                var year_month = feature.properties.start_datetime.slice(0, 6);
+                // search sub2_dir_name in 202310 or 202406 directory
+                // create variable from A to Z
+                var sub2_dir_names = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+                var sub2_dir_index = feature.properties.sub_dir_index;
+                var sub2_dir_name = sub2_dir_names[sub2_dir_index];
+                var svg_url = 'src/microtremor/' + year_month + '/' + sub2_dir_name + '/group_' + feature.properties.group_index + '.svg';
+
+                // add svg element to popup
+                // resize svg element to fit the popup
+                popupContent += '<object type="image/svg+xml" data="' + svg_url + '" width="100%" height="100%"></object>';
+                
+                layer.bindPopup(popupContent);
+
+                // add tap ivent to show popup
+                // when click the point, keep the popup open
+                layer.on('click', function (e) {
+                    layer.openPopup();
+                });
+
+                // when mouse over the point, open the popup
+                layer.on('mouseover', function (e) {
+                    layer.openPopup();
+                });
+
+            }
+        }
+
+        // CSVデータをGeoJSONに変換する関数
+        // csvdata contains the following columns: group_index,sub_dir_index,num_t3w_files,start_datetime,end_datetime,latitude,longitude,elevation,geoid_height,best_HDOP,mean_curve_freq,mean_curve_amp
+        function csvToGeoJSON(csvData) {
+            var geojson = {
+                type: "FeatureCollection",
+                features: []
+            };
+            csvData.forEach(function (row) {
+                if (row.latitude && row.longitude) {
+                    var feature = {
+                        type: "Feature",
+                        properties: {},
+                        geometry: {
+                            type: "Point",
+                            coordinates: [row.longitude, row.latitude]
+                        }
+                    };
+                    for (var key in row) {
+                        feature.properties[key] = row[key];
+                    }
+                    geojson.features.push(feature);
+                }
+            });
+            return geojson;
+        }
+
+        function pointToLayer(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 8,
+                fillColor: getColorMTFreq(feature.properties['mean_curve_freq']),
+                color: "#000",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            });
+        }
+        
+        // add microtremor data of 202310
+        fetch('src/microtremor/202310/group_list.csv')
+            .then(response => response.text())
+            .then(csvText => {
+                Papa.parse(csvText, {
+                    header: true,
+                    dynamicTyping: true,
+                    complete: function (results) {
+                        var geojson = csvToGeoJSON(results.data);
+                        var geoJsonLayer = L.geoJSON(geojson, {
+                            pointToLayer: pointToLayer,
+                            onEachFeature: onEachFeature
+                        }).addTo(map);
+                        overlays["Microtremor 202310"] = geoJsonLayer;
+                    }
+                });
+            });
+        
+        // add microtremor data of 202406
+        fetch('src/microtremor/202406/group_list.csv')
+            .then(response => response.text())
+            .then(csvText => {
+                Papa.parse(csvText, {
+                    header: true,
+                    dynamicTyping: true,
+                    complete: function (results) {
+                        var geojson = csvToGeoJSON(results.data);
+                        var geoJsonLayer = L.geoJSON(geojson, {
+                            pointToLayer: pointToLayer,
+                            onEachFeature: onEachFeature
+                        }).addTo(map);
+                        overlays["Microtremor 202406"] = geoJsonLayer;
+                        L.control.layers(baseLayers, overlays).addTo(map);
+                    }
+                });
+            });
+
+        // show layer control
+
+        // show legend of microtremor frequency
+        L.control({
+            position: 'bottomright'
+        }).onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'info legend');
+            div.innerHTML += '<h4>Microtremor Frequency</h4>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(0.25) + '"></i> 0.25-0.75<br>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(0.75) + '"></i> 0.75-1.25<br>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(1.25) + '"></i> 1.25-1.75<br>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(1.75) + '"></i> 1.75-2.25<br>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(2.25) + '"></i> 2.25-2.75<br>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(2.75) + '"></i> 2.75-3.25<br>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(3.25) + '"></i> 3.25-3.75<br>';
+            div.innerHTML += '<i style="background:' + getColorMTFreq(3.75) + '"></i> 3.75-4.25<br>';
+            return div;
+        };
+
+
+
     </script>
 </body>
+
 </html>
