@@ -182,7 +182,7 @@
         }
 
         // CSVデータをGeoJSONに変換する関数
-        // csvdata contains the following columns: group_index,sub_dir_index,num_t3w_files,start_datetime,end_datetime,latitude,longitude,elevation,geoid_height,best_HDOP,mean_curve_freq,mean_curve_amp
+        // csvdata contains the following columns: group_index,sub_dir_index,num_t3w_files,start_datetime,end_datetime,latitude,longitude,altitude,geoid_height,best_HDOP,mean_curve_freq,mean_curve_amp
         function csvToGeoJSON(csvData) {
             var geojson = {
                 type: "FeatureCollection",
