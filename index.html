@@ -6,6 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         #map-container {
             display: flex;
@@ -52,6 +53,7 @@
         #data-links a:hover {
             text-decoration: underline;
         }
+
         #plot {
             width: 100%;
             height: 500px;
@@ -75,9 +77,8 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script>
-        
+
         var map = L.map('map').setView([37.7891366, 37.6470373], 14.5);
 
         var streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -132,12 +133,13 @@
 
         function onEachFeature(feature, layer) {
             if (feature.properties) {
+
                 var popupContent = '<table>';
-                    
+
                 // get date time from start_datetime (ex:202310202250000000)
-                var date = new Date(feature.properties.start_datetime.slice(0, 4) + 
-                                    '-' + feature.properties.start_datetime.slice(4, 6) + 
-                                    '-' + feature.properties.start_datetime.slice(6, 8));
+                var date = new Date(feature.properties.start_datetime.slice(0, 4) +
+                    '-' + feature.properties.start_datetime.slice(4, 6) +
+                    '-' + feature.properties.start_datetime.slice(6, 8));
                 popupContent += '<tr><th>Date</th><td>' + date.toLocaleDateString() + '</td></tr>';
                 const conditional_keys = ["group_index", "latitude", "longitude", "mean_curve_freq"];
                 for (var prop in feature.properties) {
@@ -146,7 +148,7 @@
                         // change string of prop to Title Case (ex: mean_curve_freq -> Mean Curve Freq)
                         prop_label = prop.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                         if (prop === "mean_curve_freq") {
-                            popupContent += '<tr><th>' + prop_label + '</th><td>' + feature.properties[prop].toFixed(2) + '</td></tr>';
+                            popupContent += '<tr><th>' + "Dom. Freq" + '</th><td>' + feature.properties[prop].toFixed(2) + '</td></tr>';
                         } else if (prop === "latitude" || prop === "longitude") {
                             popupContent += '<tr><th>' + prop_label + '</th><td>' + feature.properties[prop].toFixed(6) + '</td></tr>';
                         } else {
@@ -156,24 +158,14 @@
                 }
                 popupContent += '</table>';
 
-                // add svg element to popup
-                // svg file is located in src/microtremor/202310/<sub2_dir_name>/group_<group_index>.svg
-                // sub2_dir_name can be found by using sorted list of sub-directory names in 202310 or 202406 directory
-                // sub2_dir_index is the index of sub2_dir_name in the sorted list
                 var year_month = feature.properties.start_datetime.slice(0, 6);
-                // search sub2_dir_name in 202310 or 202406 directory
-                // create variable from A to Z
                 var sub2_dir_names = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
                 var sub2_dir_index = feature.properties.sub_dir_index;
                 var sub2_dir_name = sub2_dir_names[sub2_dir_index];
-                var svg_url = 'src/microtremor/' + year_month + '/' + sub2_dir_name + '/group_' + feature.properties.group_index + '.svg';
-
-                // add svg element to popup
-                // resize svg element to fit the popup
-                popupContent += '<object type="image/svg+xml" data="' + svg_url + '" width="100%" height="100%"></object>';
-                
+                var plotly_html_path = 'src/microtremor/' + year_month + '/' + sub2_dir_name + '/group_' + feature.properties.group_index + '.html';
+            
                 layer.bindPopup(popupContent);
-
+                // add plotly plot to popup                 
                 // add tap ivent to show popup
                 // when click the point, keep the popup open
                 layer.on('click', function (e) {
@@ -222,11 +214,12 @@
                 fillOpacity: 0.8
             });
         }
-        
+
         // add microtremor data of 202310
         fetch('src/microtremor/202310/group_list.csv')
             .then(response => response.text())
             .then(csvText => {
+                console.log(csvText);
                 Papa.parse(csvText, {
                     header: true,
                     dynamicTyping: true,
@@ -240,7 +233,7 @@
                     }
                 });
             });
-        
+
         // add microtremor data of 202406
         fetch('src/microtremor/202406/group_list.csv')
             .then(response => response.text())
