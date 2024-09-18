@@ -71,153 +71,74 @@
         <h2>Overview</h2>
         <p>This map shows the results from the project of JSPS KAKENHI Grant Number 22K21372 and JST J-RAPID Program
             Grant Number JPMJJR2304.</p>
-        <p>The project page and downloadble dataset are available from <a
+        <p>The project page and downloadable dataset are available from <a
                 href="https://github.com/shiga-masa/jrapid-2023-turkey-eq-golbasi">this URL</a></p>
     </div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script>
+        const map = L.map('map').setView([37.7891366, 37.6470373], 14.5);
 
-        var map = L.map('map').setView([37.7891366, 37.6470373], 14.5);
-
-        var streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        // 
-
-        var baseLayers = {
+        const baseLayers = {
             "Streets": streets,
         };
 
-        var overlays = {
-            // "Microtremor 202310": microtremor202310,
-            // "Microtremor 202406": microtremor202406
-        };
+        const overlays = {};
 
-        // smaller values are closer to red(0xff0000) and larger values are closer to blue(0x0000ff)
-        // min: 0.25, max: 3
-        // interbal: 0.5
         function getColorMTFreq(d) {
-            if (d === null) {
-                return '#ff0000';
-            }
-            else if (d < 0.25) {
-                return '#ff0000';
-            }
-            else if (d < 0.75) {
-                return '#ff8000';
-            }
-            else if (d < 1.25) {
-                return '#ffff00';
-            }
-            else if (d < 1.75) {
-                return '#80ff00';
-            }
-            else if (d < 2.25) {
-                return '#00ff00';
-            }
-            else if (d < 2.75) {
-                return '#00ff80';
-            }
-            else if (d < 3.25) {
-                return '#00ffff';
-            }
-            else {
-                return '#0000ff';
-            }
-
+            if (d === null || d < 0.25) return '#ff0000';
+            if (d < 0.75) return '#ff8000';
+            if (d < 1.25) return '#ffff00';
+            if (d < 1.75) return '#80ff00';
+            if (d < 2.25) return '#00ff00';
+            if (d < 2.75) return '#00ff80';
+            if (d < 3.25) return '#00ffff';
+            return '#0000ff';
         }
-
 
         function onEachFeature(feature, layer) {
             if (feature.properties) {
-
-                var popupContent = '<table>';
-
-                // get date time from start_datetime (ex:202310202250000000)
-                var date = new Date(feature.properties.start_datetime.slice(0, 4) +
-                    '-' + feature.properties.start_datetime.slice(4, 6) +
-                    '-' + feature.properties.start_datetime.slice(6, 8));
-                popupContent += '<tr><th>Date</th><td>' + date.toLocaleDateString() + '</td></tr>';
-                const conditional_keys = ["group_index", "latitude", "longitude", "mean_curve_freq"];
-                for (var prop in feature.properties) {
-                    if (conditional_keys.includes(prop)) {
-
-                        // change string of prop to Title Case (ex: mean_curve_freq -> Mean Curve Freq)
-                        prop_label = prop.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        if (prop === "mean_curve_freq") {
-                            popupContent += '<tr><th>' + "Dom. Freq" + '</th><td>' + feature.properties[prop].toFixed(2) + '</td></tr>';
-                        } else if (prop === "latitude" || prop === "longitude") {
-                            popupContent += '<tr><th>' + prop_label + '</th><td>' + feature.properties[prop].toFixed(6) + '</td></tr>';
-                        } else {
-                            popupContent += '<tr><th>' + prop_label + '</th><td>' + feature.properties[prop] + '</td></tr>';
-                        }
-                    }
-                }
-                popupContent += '</table>';
-
-                var year_month = feature.properties.start_datetime.slice(0, 6);
-                var sub2_dir_names = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-                var sub2_dir_index = feature.properties.sub_dir_index;
-                var sub2_dir_name = sub2_dir_names[sub2_dir_index];
-                var plotly_html_path = 'src/microtremor/' + year_month + '/' + sub2_dir_name + '/group_' + feature.properties.group_index + '.html';
-                
-                // add plotly plot to popup
-                fetch(plotly_html_path)
-                    .then(response => response.text())
-                    .then(htmlText => {
-                        var plotlyDiv = document.createElement('div');
-                        plotlyDiv.innerHTML = htmlText;
-                        var plotlyPlot = plotlyDiv.querySelector('.plotly-graph-div');
-                        if (plotlyPlot) {
-                            var popupContentDiv = document.createElement('div');
-                            popupContentDiv.appendChild(plotlyPlot);
-                            layer.bindPopup(popupContentDiv);
-                        } else {
-                            layer.bindPopup(popupContent);
-                        }
-                    });
-
+                const popupContent = createPopupContent(feature.properties);
                 layer.bindPopup(popupContent);
-                // add plotly plot to popup                 
-                // add tap ivent to show popup
-                // when click the point, keep the popup open
-                layer.on('click', function (e) {
-                    layer.openPopup();
-                });
-
-                // when mouse over the point, open the popup
-                layer.on('mouseover', function (e) {
-                    layer.openPopup();
-                });
-
+                layer.on('click', () => layer.openPopup());
+                layer.on('mouseover', () => layer.openPopup());
             }
         }
 
-        function csvToGeoJSON(csvData) {
-            var geojson = {
-                type: "FeatureCollection",
-                features: []
-            };
-            csvData.forEach(function (row) {
-                if (row.latitude && row.longitude) {
-                    var feature = {
-                        type: "Feature",
-                        properties: {},
-                        geometry: {
-                            type: "Point",
-                            coordinates: [row.longitude, row.latitude]
-                        }
-                    };
-                    for (var key in row) {
-                        feature.properties[key] = row[key];
-                    }
-                    geojson.features.push(feature);
+        function createPopupContent(properties) {
+            let popupContent = '<table>';
+            const date = new Date(`${properties.start_datetime.slice(0, 4)}-${properties.start_datetime.slice(4, 6)}-${properties.start_datetime.slice(6, 8)}`);
+            popupContent += `<tr><th>Date</th><td>${date.toLocaleDateString()}</td></tr>`;
+            const conditionalKeys = ["group_index", "latitude", "longitude", "mean_curve_freq"];
+            for (const prop of conditionalKeys) {
+                if (properties[prop] !== undefined) {
+                    const propLabel = prop.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const value = prop === "mean_curve_freq" ? properties[prop].toFixed(2) :
+                        (prop === "latitude" || prop === "longitude") ? properties[prop].toFixed(6) : properties[prop];
+                    popupContent += `<tr><th>${prop === "mean_curve_freq" ? "Dom. Freq" : propLabel}</th><td>${value}</td></tr>`;
                 }
-            });
-            return geojson;
+            }
+            popupContent += '</table>';
+            return popupContent;
+        }
+
+        function csvToGeoJSON(csvData) {
+            return {
+                type: "FeatureCollection",
+                features: csvData.filter(row => row.latitude && row.longitude).map(row => ({
+                    type: "Feature",
+                    properties: row,
+                    geometry: {
+                        type: "Point",
+                        coordinates: [row.longitude, row.latitude]
+                    }
+                }))
+            };
         }
 
         function pointToLayer(feature, latlng) {
@@ -231,64 +152,28 @@
             });
         }
 
-        // add microtremor data of 202310
-        fetch('src/microtremor/202310/group_list.csv')
-            .then(response => response.text())
-            .then(csvText => {
-                console.log(csvText);
-                Papa.parse(csvText, {
-                    header: true,
-                    dynamicTyping: true,
-                    complete: function (results) {
-                        var geojson = csvToGeoJSON(results.data);
-                        var geoJsonLayer = L.geoJSON(geojson, {
-                            pointToLayer: pointToLayer,
-                            onEachFeature: onEachFeature
-                        }).addTo(map);
-                        overlays["Microtremor 202310"] = geoJsonLayer;
-                    }
+        function addMicrotremorData(url, overlayName) {
+            fetch(url)
+                .then(response => response.text())
+                .then(csvText => {
+                    Papa.parse(csvText, {
+                        header: true,
+                        dynamicTyping: true,
+                        complete: function (results) {
+                            const geojson = csvToGeoJSON(results.data);
+                            const geoJsonLayer = L.geoJSON(geojson, {
+                                pointToLayer: pointToLayer,
+                                onEachFeature: onEachFeature
+                            }).addTo(map);
+                            overlays[overlayName] = geoJsonLayer;
+                            L.control.layers(baseLayers, overlays).addTo(map);
+                        }
+                    });
                 });
-            });
+        }
 
-        // add microtremor data of 202406
-        fetch('src/microtremor/202406/group_list.csv')
-            .then(response => response.text())
-            .then(csvText => {
-                Papa.parse(csvText, {
-                    header: true,
-                    dynamicTyping: true,
-                    complete: function (results) {
-                        var geojson = csvToGeoJSON(results.data);
-                        var geoJsonLayer = L.geoJSON(geojson, {
-                            pointToLayer: pointToLayer,
-                            onEachFeature: onEachFeature
-                        }).addTo(map);
-                        overlays["Microtremor 202406"] = geoJsonLayer;
-                        L.control.layers(baseLayers, overlays).addTo(map);
-                    }
-                });
-            });
-
-
-        // show legend of microtremor frequency
-        L.control({
-            position: 'bottomright'
-        }).onAdd = function (map) {
-            var div = L.DomUtil.create('div', 'info legend');
-            div.innerHTML += '<h4>Microtremor Frequency</h4>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(0.25) + '"></i> 0.25-0.75<br>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(0.75) + '"></i> 0.75-1.25<br>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(1.25) + '"></i> 1.25-1.75<br>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(1.75) + '"></i> 1.75-2.25<br>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(2.25) + '"></i> 2.25-2.75<br>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(2.75) + '"></i> 2.75-3.25<br>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(3.25) + '"></i> 3.25-3.75<br>';
-            div.innerHTML += '<i style="background:' + getColorMTFreq(3.75) + '"></i> 3.75-4.25<br>';
-            return div;
-        };
-
-
-
+        addMicrotremorData('src/microtremor/202310/group_list.csv', "Microtremor 202310");
+        addMicrotremorData('src/microtremor/202406/group_list.csv', "Microtremor 202406");
     </script>
 </body>
 
