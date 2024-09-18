@@ -163,7 +163,23 @@
                 var sub2_dir_index = feature.properties.sub_dir_index;
                 var sub2_dir_name = sub2_dir_names[sub2_dir_index];
                 var plotly_html_path = 'src/microtremor/' + year_month + '/' + sub2_dir_name + '/group_' + feature.properties.group_index + '.html';
-            
+                
+                // add plotly plot to popup
+                fetch(plotly_html_path)
+                    .then(response => response.text())
+                    .then(htmlText => {
+                        var plotlyDiv = document.createElement('div');
+                        plotlyDiv.innerHTML = htmlText;
+                        var plotlyPlot = plotlyDiv.querySelector('.plotly-graph-div');
+                        if (plotlyPlot) {
+                            var popupContentDiv = document.createElement('div');
+                            popupContentDiv.appendChild(plotlyPlot);
+                            layer.bindPopup(popupContentDiv);
+                        } else {
+                            layer.bindPopup(popupContent);
+                        }
+                    });
+
                 layer.bindPopup(popupContent);
                 // add plotly plot to popup                 
                 // add tap ivent to show popup
