@@ -108,11 +108,10 @@
                 layer.bindPopup(popupContent, 
                     { maxWidth: 400}
                 );
-                // open popup on click and eval Plotly script
+                // open popup on click after loading the plotly graph
                 layer.on('click', function (e) {
+                    eval(document.querySelectorAll('script')[3].innerHTML);                   
                     e.target.openPopup();
-                    console.log(document.querySelectorAll('script')[3]);
-                    eval(document.querySelectorAll('script')[3].innerHTML);
                 });
             }
         }
