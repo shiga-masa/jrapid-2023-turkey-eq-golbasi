@@ -89,6 +89,7 @@
         };
 
         const overlays = {};
+        let control; // Define control variable here
 
         function getColorMTFreq(d) {
             if (d === null || d < 0.25) return '#ff0000';
@@ -104,26 +105,94 @@
         function onEachFeature(feature, layer) {
             if (feature.properties) {
                 const popupContent = createPopupContent(feature.properties);
-                layer.bindPopup(popupContent);
-                layer.on('click', () => layer.openPopup());
-                layer.on('mouseover', () => layer.openPopup());
+                layer.bindPopup(popupContent, 
+                    { maxWidth: 400}
+                );
+                // open popup on click and eval Plotly script
+                layer.on('click', function (e) {
+                    e.target.openPopup();
+                    console.log(document.querySelectorAll('script')[3]);
+                    eval(document.querySelectorAll('script')[3].innerHTML);
+                });
             }
         }
 
+        async function loadPlotlyHtml(plotly_html_path, graphDiv) {
+
+            try {
+                const response = await fetch(plotly_html_path);
+                if (!response.ok) {
+                    throw new Error('Failed to load the HTML file');
+                }
+                var text = await response.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                const plotlyDivId = doc.querySelectorAll('div')[1].id;
+
+                var updatedText = text.replaceAll(plotlyDivId, 'plotly-graph-base');
+                const updatedDoc = parser.parseFromString(updatedText, 'text/html');
+                const updatedPlotlyScript = updatedDoc.querySelector('script').innerHTML;
+
+                graphDiv.innerHTML = updatedDoc.body.innerHTML;
+
+            } catch (error) {
+                console.error(error);
+            }
+            
+        }
+
         function createPopupContent(properties) {
-            let popupContent = '<table>';
+
+            var popupContent = document.createElement('div');
+            popupContent.style.Width = '400px';
+
+            var tableDiv = document.createElement('div');
+            var table = document.createElement('table');
+            tableDiv.appendChild(table);
+
             const date = new Date(`${properties.start_datetime.slice(0, 4)}-${properties.start_datetime.slice(4, 6)}-${properties.start_datetime.slice(6, 8)}`);
-            popupContent += `<tr><th>Date</th><td>${date.toLocaleDateString()}</td></tr>`;
+            var dateRow = document.createElement('tr');
+            var dateTh = document.createElement('th');
+            dateTh.textContent = 'Date';
+            var dateTd = document.createElement('td');
+            dateTd.textContent = date.toLocaleDateString();
+            dateRow.appendChild(dateTh);
+            dateRow.appendChild(dateTd);
+            table.appendChild(dateRow);
+
             const conditionalKeys = ["group_index", "latitude", "longitude", "mean_curve_freq"];
             for (const prop of conditionalKeys) {
                 if (properties[prop] !== undefined) {
-                    const propLabel = prop.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    const value = prop === "mean_curve_freq" ? properties[prop].toFixed(2) :
+                    var row = document.createElement('tr');
+                    var th = document.createElement('th');
+                    var propLabel = prop.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    th.textContent = prop === "mean_curve_freq" ? "Dom. Freq" : propLabel;
+                    var td = document.createElement('td');
+                    var value = prop === "mean_curve_freq" ? properties[prop].toFixed(2) :
                         (prop === "latitude" || prop === "longitude") ? properties[prop].toFixed(6) : properties[prop];
-                    popupContent += `<tr><th>${prop === "mean_curve_freq" ? "Dom. Freq" : propLabel}</th><td>${value}</td></tr>`;
+                    td.textContent = value;
+                    row.appendChild(th);
+                    row.appendChild(td);
+                    table.appendChild(row);
                 }
             }
-            popupContent += '</table>';
+
+            popupContent.appendChild(tableDiv);
+
+            var graphDiv = document.createElement('div');
+            graphDiv.id = 'plotly-graph';
+
+            const yearMonth = properties.start_datetime.slice(0, 6);
+            const subDirNames = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
+            const subDirIndex = properties.sub_dir_index;
+            const subDirName = subDirNames[subDirIndex];
+            const plotly_html_path = `src/microtremor/` + yearMonth + `/` + subDirName + `/group_` + properties.group_index + `.html`;
+
+            loadPlotlyHtml(plotly_html_path, graphDiv);
+
+            popupContent.appendChild(graphDiv);
+
             return popupContent;
         }
 
@@ -166,11 +235,16 @@
                                 onEachFeature: onEachFeature
                             }).addTo(map);
                             overlays[overlayName] = geoJsonLayer;
-                            L.control.layers(baseLayers, overlays).addTo(map);
+                            // remove the previous L.control and add a new one
+                            if (control) {
+                                map.removeControl(control);
+                            }
+                            control = L.control.layers(baseLayers, overlays).addTo(map);
                         }
                     });
                 });
         }
+
 
         addMicrotremorData('src/microtremor/202310/group_list.csv', "Microtremor 202310");
         addMicrotremorData('src/microtremor/202406/group_list.csv', "Microtremor 202406");
